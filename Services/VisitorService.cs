@@ -322,7 +322,7 @@ WHERE vt.VisitId = @VisitId";
                 using SqlConnection con = new SqlConnection(connectionString);
 
                 string query = @"
-            SELECT VisitorId, Name, PhoneNumber, BirthDate
+            SELECT VisitorId,VisitId, Name, PhoneNumber, BirthDate
             FROM Visitors
             WHERE IsActive = 1";
 
@@ -338,6 +338,7 @@ WHERE vt.VisitId = @VisitId";
                 {
                     visitors.Add(new Visitor
                     {
+                        VisitId = Convert.ToInt32(reader["VisitId"]),
                         VisitorId = Convert.ToInt32(reader["VisitorId"]),
                         Name = reader["Name"].ToString() ?? string.Empty,
                         PhoneNumber = reader["PhoneNumber"].ToString() ?? string.Empty,
@@ -366,6 +367,7 @@ WHERE vt.VisitId = @VisitId";
 
                 string query = @"
             SELECT VisitorId,
+
                    Name,
                    PhoneNumber,
                    BirthDate

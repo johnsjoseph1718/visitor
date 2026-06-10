@@ -5,6 +5,7 @@ namespace visitors_mangement_system.Models
     public class Visitor
     {
         public int VisitorId { get; set; }
+        public int VisitId { get; set; }
 
         public string Name { get; set; } = string.Empty;
 
@@ -14,7 +15,9 @@ namespace visitors_mangement_system.Models
         public DateTime BirthDate { get; set; }
 
         public bool IsActive { get; set; } = true;
+        public bool CheckIn { get; set; }
 
+        public bool CheckOut { get; set; }
         public DateTime CreatedDate { get; set; }
         public string CreatedBy { get; set; } = string.Empty;
 

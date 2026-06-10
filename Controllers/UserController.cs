@@ -44,6 +44,22 @@ namespace visitors_mangement_system.Controllers
                 Response = null
             });
         }
+        [Authorize]
+        [HttpGet("validate-token")]
+        public IActionResult ValidateToken()
+        {
+            string? userId =
+                User.FindFirst(
+                    System.Security.Claims.ClaimTypes.NameIdentifier)
+                ?.Value;
+
+            return Ok(new
+            {
+                Success = true,
+                UserId = userId,
+                Message = "Token is valid"
+            });
+        }
 
     }
 }

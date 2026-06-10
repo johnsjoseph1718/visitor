@@ -79,14 +79,14 @@ namespace visitors_mangement_system.Controllers
         [HttpGet("report")]
         public IActionResult Report()
         {
-            var (visitors, error) = _visitorBusiness.GetReport();
+            var (visits, error) = _visitorBusiness.GetReport();
             if (error != null)
                 return StatusCode(500, error);
-            return Ok(new CommonResponseModel<List<Visitor>>
+            return Ok(new CommonResponseModel<List<VisitReportResponse>>
             {
                 Success = true,
                 Message = "Report fetched successfully",
-                Response = visitors
+                Response = visits
             });
         }
         [Authorize]
@@ -143,6 +143,7 @@ namespace visitors_mangement_system.Controllers
                 Response = visits
             });
         }
+
         [Authorize]
         [HttpGet("visits/completed/{visitDate}")]
         public IActionResult GetCompletedVisits(DateTime visitDate)
@@ -252,6 +253,24 @@ namespace visitors_mangement_system.Controllers
                 Response = dashboard
             });
         }
+        [Authorize]
+        [HttpGet("dashboard/{visitDate}/scheduled")]
+        public IActionResult GetScheduledVisitors(DateTime visitDate)
+        {
+            (List<VisitReportResponse>? visits, string? error)
+                = _visitorBusiness.GetScheduledVisits(visitDate);
+
+            if (error != null)
+                return StatusCode(500, error);
+
+            return Ok(new CommonResponseModel<List<VisitReportResponse>>
+            {
+                Success = true,
+                Message = "Scheduled visitors fetched successfully",
+                Response = visits
+            });
+        }
+
         [Authorize]
         [HttpGet("history/{visitorId}")]
         public IActionResult GetVisitorHistory(int visitorId)

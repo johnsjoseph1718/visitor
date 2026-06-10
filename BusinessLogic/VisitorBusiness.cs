@@ -53,7 +53,7 @@ namespace visitors_mangement_system.BusinessLogic
             return _repo.CheckOut(visitId);
         }
 
-        public (List<Visitor>? visitors, string? error) GetReport()
+        public (List<VisitReportResponse>? visits, string? error) GetReport()
         {
             return _repo.GetReport();
         }

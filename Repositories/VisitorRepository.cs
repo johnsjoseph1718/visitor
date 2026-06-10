@@ -290,7 +290,7 @@ namespace visitors_mangement_system.Repositories
             }
         }
 
-        public (List<Visitor>? visitors, string? error) GetReport()
+        public (List<VisitReportResponse>? visits, string? error) GetReport()
         {
             try
             {
@@ -300,9 +300,20 @@ namespace visitors_mangement_system.Repositories
                 using SqlConnection con = new SqlConnection(_connectionString);
 
                 string query = @"
-            SELECT VisitorId, Name, PhoneNumber, BirthDate
-            FROM Visitors
-            WHERE IsActive = 1";
+            SELECT 
+                v.VisitId,
+                v.VisitorId,
+                vis.Name,
+                vis.PhoneNumber,
+                vis.BirthDate,
+                v.VisitDate,
+                v.Status,
+                v.CheckIn,
+                v.CheckOut
+            FROM Visits v
+            INNER JOIN Visitors vis ON v.VisitorId = vis.VisitorId
+            WHERE v.IsActive = 1 AND vis.IsActive = 1
+            ORDER BY v.VisitDate DESC";
 
                 using SqlCommand cmd = new SqlCommand(query, con);
 
@@ -310,20 +321,25 @@ namespace visitors_mangement_system.Repositories
 
                 using SqlDataReader reader = cmd.ExecuteReader();
 
-                List<Visitor> visitors = new();
+                List<VisitReportResponse> visits = new();
 
                 while (reader.Read())
                 {
-                    visitors.Add(new Visitor
+                    visits.Add(new VisitReportResponse
                     {
+                        VisitId = Convert.ToInt32(reader["VisitId"]),
                         VisitorId = Convert.ToInt32(reader["VisitorId"]),
                         Name = reader["Name"].ToString() ?? string.Empty,
                         PhoneNumber = reader["PhoneNumber"].ToString() ?? string.Empty,
-                        BirthDate = Convert.ToDateTime(reader["BirthDate"])
+                        BirthDate = Convert.ToDateTime(reader["BirthDate"]),
+                        VisitDate = Convert.ToDateTime(reader["VisitDate"]),
+                        Status = reader["Status"].ToString() ?? string.Empty,
+                        CheckIn = Convert.ToBoolean(reader["CheckIn"]),
+                        CheckOut = Convert.ToBoolean(reader["CheckOut"])
                     });
                 }
 
-                return (visitors, null);
+                return (visits, null);
             }
             catch (Exception ex)
             {
@@ -363,6 +379,7 @@ namespace visitors_mangement_system.Repositories
                 Visitor visitor = new Visitor
                 {
                     VisitorId = Convert.ToInt32(reader["VisitorId"]),
+
                     Name = reader["Name"].ToString() ?? "",
                     PhoneNumber = reader["PhoneNumber"].ToString() ?? "",
                     BirthDate = Convert.ToDateTime(reader["BirthDate"])
@@ -477,8 +494,8 @@ namespace visitors_mangement_system.Repositories
 
                 string query = @"
             SELECT
+                vt.VisitorId,       
                 vt.VisitId,
-                vt.VisitorId,
                 v.Name,
                 v.PhoneNumber,
                 vt.VisitDate,

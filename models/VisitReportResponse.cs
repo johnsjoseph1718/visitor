@@ -10,6 +10,8 @@
 
         public string PhoneNumber { get; set; } = string.Empty;
 
+        public DateTime BirthDate { get; set; }
+
         public DateTime VisitDate { get; set; }
 
         public string Status { get; set; } = string.Empty;
