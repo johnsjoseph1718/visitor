@@ -16,6 +16,12 @@
 
         public string Status { get; set; } = string.Empty;
 
+        public string? ReasonType { get; set; }
+
+        public string? Comments { get; set; }
+
+        public DateTime CreatedDate { get; set; }
+
         public bool CheckIn { get; set; }
 
         public bool CheckOut { get; set; }

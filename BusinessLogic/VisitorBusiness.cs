@@ -100,17 +100,25 @@ namespace visitors_mangement_system.BusinessLogic
             return _repo.ApproveVisit(visitId);
         }
 
-        public (int statusCode, string message) RejectVisit(int visitId)
+        public (int statusCode, string message) RejectVisit(int visitId, RejectVisitRequest request)
         {
             if (visitId <= 0)
                 return (400, "Invalid visit id");
 
-            return _repo.RejectVisit(visitId);
+            if (request == null)
+                return (400, "Request is required");
+
+            return _repo.RejectVisit(visitId, request);
         }
 
         public (List<VisitReportResponse>? visits, string? error) GetWaitingVisits(DateTime visitDate)
         {
             return _repo.GetWaitingVisits(visitDate);
+        }
+
+        public (List<VisitReportResponse>? visits, string? error) GetRejectedVisits()
+        {
+            return _repo.GetRejectedVisits();
         }
 
         public (List<VisitReportResponse>? visits, string? error) GetCancelledVisits(DateTime visitDate)

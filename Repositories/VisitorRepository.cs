@@ -179,7 +179,9 @@ namespace visitors_mangement_system.Repositories
 
                 string updateQuery = @"
             UPDATE Visits
-            SET CheckIn = 1
+            SET CheckIn = 1,
+                UpdatedDate = GETDATE(),
+                UpdatedBy = @UpdatedBy
             WHERE VisitId = @VisitId";
 
                 using SqlCommand updateCmd = new SqlCommand(updateQuery, con);
@@ -273,10 +275,15 @@ namespace visitors_mangement_system.Repositories
                 string updateQuery = @"
             UPDATE Visits
             SET CheckOut = 1,
-                Status = 'Completed'
+                Status = 'Completed',
+                UpdatedDate = GETDATE(),
+                UpdatedBy = @UpdatedBy
             WHERE VisitId = @VisitId";
 
                 using SqlCommand updateCmd = new SqlCommand(updateQuery, con);
+
+                string updatedBy = "Admin";
+                updateCmd.Parameters.AddWithValue("@UpdatedBy", updatedBy);
 
                 updateCmd.Parameters.AddWithValue("@VisitId", visitId);
 
@@ -308,6 +315,9 @@ namespace visitors_mangement_system.Repositories
                 vis.BirthDate,
                 v.VisitDate,
                 v.Status,
+                v.CancelReasonType,
+                v.CancelReasonComment,
+                v.CreatedDate,
                 v.CheckIn,
                 v.CheckOut
             FROM Visits v
@@ -334,6 +344,9 @@ namespace visitors_mangement_system.Repositories
                         BirthDate = Convert.ToDateTime(reader["BirthDate"]),
                         VisitDate = Convert.ToDateTime(reader["VisitDate"]),
                         Status = reader["Status"].ToString() ?? string.Empty,
+                        ReasonType = reader["CancelReasonType"].ToString() ?? string.Empty,
+                        Comments = reader["CancelReasonComment"].ToString() ?? string.Empty,
+                        CreatedDate = Convert.ToDateTime(reader["CreatedDate"]),
                         CheckIn = Convert.ToBoolean(reader["CheckIn"]),
                         CheckOut = Convert.ToBoolean(reader["CheckOut"])
                     });
@@ -436,20 +449,41 @@ namespace visitors_mangement_system.Repositories
                 if (duplicateCount > 0)
                     return (false, "Visitor already has a visit on this date");
 
-                string countQuery = @"
+                string waitingCountQuery = @"
+            SELECT COUNT(*)
+            FROM Visits
+            WHERE VisitDate = @VisitDate
+            AND Status = 'Waiting'
+            AND IsActive = 1";
+
+                using SqlCommand waitingCountCmd = new SqlCommand(waitingCountQuery, con);
+                waitingCountCmd.Parameters.AddWithValue("@VisitDate", request.VisitDate.Date);
+
+                int waitingCount = Convert.ToInt32(waitingCountCmd.ExecuteScalar());
+
+                string status;
+
+                if (waitingCount > 0)
+                {
+                    status = "Waiting"; // queue protection: if there are waiting visitors for this date, new visits join waiting
+                }
+                else
+                {
+                    string countQuery = @"
             SELECT COUNT(*)
             FROM Visits
             WHERE VisitDate = @VisitDate
             AND Status = 'Scheduled'
             AND IsActive = 1";
 
-                using SqlCommand countCmd = new SqlCommand(countQuery, con);
+                    using SqlCommand countCmd = new SqlCommand(countQuery, con);
 
-                countCmd.Parameters.AddWithValue("@VisitDate", request.VisitDate.Date);
+                    countCmd.Parameters.AddWithValue("@VisitDate", request.VisitDate.Date);
 
-                int scheduledCount = Convert.ToInt32(countCmd.ExecuteScalar());
+                    int scheduledCount = Convert.ToInt32(countCmd.ExecuteScalar());
 
-                string status = scheduledCount < 10 ? "Scheduled" : "Waiting";
+                    status = scheduledCount < 10 ? "Scheduled" : "Waiting";
+                }
 
                 string insertQuery = @"
             INSERT INTO Visits
@@ -644,13 +678,18 @@ namespace visitors_mangement_system.Repositories
             UPDATE Visits
             SET Status = 'Cancelled',
                 CancelReasonType = @ReasonType,
-                CancelReasonComment = @Comments
+                CancelReasonComment = @Comments,
+                UpdatedDate = GETDATE(),
+                UpdatedBy = @UpdatedBy
             WHERE VisitId = @VisitId";
 
                 using SqlCommand updateCmd = new SqlCommand(updateQuery, con);
 
                 updateCmd.Parameters.AddWithValue("@ReasonType", request.ReasonType);
                 updateCmd.Parameters.AddWithValue("@Comments", request.Comments);
+
+                string updatedBy = "Admin";
+                updateCmd.Parameters.AddWithValue("@UpdatedBy", updatedBy);
                 updateCmd.Parameters.AddWithValue("@VisitId", visitId);
 
                 updateCmd.ExecuteNonQuery();
@@ -733,7 +772,7 @@ namespace visitors_mangement_system.Repositories
             }
         }
 
-        public (int statusCode, string message) RejectVisit(int visitId)
+        public (int statusCode, string message) RejectVisit(int visitId, RejectVisitRequest request)
         {
             try
             {
@@ -766,10 +805,21 @@ namespace visitors_mangement_system.Repositories
 
                 string updateQuery = @"
             UPDATE Visits
-            SET Status = 'Rejected'
+            SET Status = 'Rejected',
+                CancelReasonType = @ReasonType,
+                CancelReasonComment = @Comments,
+                UpdatedDate = GETDATE(),
+                UpdatedBy = @UpdatedBy
             WHERE VisitId = @VisitId";
 
                 using SqlCommand updateCmd = new SqlCommand(updateQuery, con);
+
+                updateCmd.Parameters.AddWithValue("@ReasonType", request.ReasonType);
+                updateCmd.Parameters.AddWithValue("@Comments", request.Comments);
+
+                // prefer authenticated user if available; fallback to 'Admin' if not retrievable
+                string updatedBy = "Admin";
+                updateCmd.Parameters.AddWithValue("@UpdatedBy", updatedBy);
 
                 updateCmd.Parameters.AddWithValue("@VisitId", visitId);
 
@@ -801,7 +851,8 @@ namespace visitors_mangement_system.Repositories
                 vt.VisitDate,
                 vt.Status,
                 vt.CheckIn,
-                vt.CheckOut
+                vt.CheckOut,
+                vt.CreatedDate
             FROM Visits vt
             INNER JOIN Visitors v
                 ON vt.VisitorId = v.VisitorId
@@ -830,6 +881,70 @@ namespace visitors_mangement_system.Repositories
                         PhoneNumber = reader["PhoneNumber"].ToString() ?? "",
                         VisitDate = Convert.ToDateTime(reader["VisitDate"]),
                         Status = reader["Status"].ToString() ?? "",
+                        CreatedDate = Convert.ToDateTime(reader["CreatedDate"]),
+                        CheckIn = Convert.ToBoolean(reader["CheckIn"]),
+                        CheckOut = Convert.ToBoolean(reader["CheckOut"])
+                    });
+                }
+
+                return (visits, null);
+            }
+            catch (Exception ex)
+            {
+                return (null, ex.Message);
+            }
+        }
+
+        public (List<VisitReportResponse>? visits, string? error) GetRejectedVisits()
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(_connectionString))
+                    return (null, "Database connection string is not configured.");
+
+                using SqlConnection con = new SqlConnection(_connectionString);
+
+                string query = @"
+            SELECT
+                vt.VisitId,
+                vt.VisitorId,
+                v.Name,
+                v.PhoneNumber,
+                vt.VisitDate,
+                vt.Status,
+                vt.CancelReasonType,
+                vt.CancelReasonComment,
+                vt.CreatedDate,
+                vt.CheckIn,
+                vt.CheckOut
+            FROM Visits vt
+            INNER JOIN Visitors v
+                ON vt.VisitorId = v.VisitorId
+            WHERE vt.Status = 'Rejected'
+            AND vt.IsActive = 1
+            ORDER BY vt.CreatedDate DESC";
+
+                using SqlCommand cmd = new SqlCommand(query, con);
+
+                con.Open();
+
+                using SqlDataReader reader = cmd.ExecuteReader();
+
+                List<VisitReportResponse> visits = new();
+
+                while (reader.Read())
+                {
+                    visits.Add(new VisitReportResponse
+                    {
+                        VisitId = Convert.ToInt32(reader["VisitId"]),
+                        VisitorId = Convert.ToInt32(reader["VisitorId"]),
+                        Name = reader["Name"].ToString() ?? "",
+                        PhoneNumber = reader["PhoneNumber"].ToString() ?? "",
+                        VisitDate = Convert.ToDateTime(reader["VisitDate"]),
+                        Status = reader["Status"].ToString() ?? "",
+                        ReasonType = reader["CancelReasonType"].ToString() ?? "",
+                        Comments = reader["CancelReasonComment"].ToString() ?? "",
+                        CreatedDate = Convert.ToDateTime(reader["CreatedDate"]),
                         CheckIn = Convert.ToBoolean(reader["CheckIn"]),
                         CheckOut = Convert.ToBoolean(reader["CheckOut"]) 
                     });
@@ -860,6 +975,9 @@ namespace visitors_mangement_system.Repositories
                 v.PhoneNumber,
                 vt.VisitDate,
                 vt.Status,
+                vt.CancelReasonType,
+                vt.CancelReasonComment,
+                vt.CreatedDate,
                 vt.CheckIn,
                 vt.CheckOut
             FROM Visits vt
@@ -890,6 +1008,9 @@ namespace visitors_mangement_system.Repositories
                         PhoneNumber = reader["PhoneNumber"].ToString() ?? "",
                         VisitDate = Convert.ToDateTime(reader["VisitDate"]),
                         Status = reader["Status"].ToString() ?? "",
+                        ReasonType = reader["CancelReasonType"].ToString() ?? "",
+                        Comments = reader["CancelReasonComment"].ToString() ?? "",
+                        CreatedDate = Convert.ToDateTime(reader["CreatedDate"]),
                         CheckIn = Convert.ToBoolean(reader["CheckIn"]),
                         CheckOut = Convert.ToBoolean(reader["CheckOut"]) 
                     });

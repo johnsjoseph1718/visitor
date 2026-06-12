@@ -193,9 +193,9 @@ namespace visitors_mangement_system.Controllers
         }
         [Authorize]
         [HttpPut("reject/{visitId}")]
-        public IActionResult RejectVisit(int visitId)
+        public IActionResult RejectVisit(int visitId, [FromBody] RejectVisitRequest request)
         {
-            (int statusCode, string message) = _visitorBusiness.RejectVisit(visitId);
+            (int statusCode, string message) = _visitorBusiness.RejectVisit(visitId, request);
 
             if (statusCode == 200)
                 return Ok(message);
@@ -204,6 +204,23 @@ namespace visitors_mangement_system.Controllers
                 return NotFound(message);
 
             return BadRequest(message);
+        }
+
+        [Authorize]
+        [HttpGet("visits/rejected")]
+        public IActionResult GetRejectedVisits()
+        {
+            var (visits, error) = _visitorBusiness.GetRejectedVisits();
+
+            if (error != null)
+                return StatusCode(500, error);
+
+            return Ok(new CommonResponseModel<List<VisitReportResponse>>
+            {
+                Success = true,
+                Message = "Rejected visits fetched successfully",
+                Response = visits
+            });
         }
         [Authorize]
         [HttpGet("visits/waiting/{visitDate}")]
@@ -296,11 +313,20 @@ namespace visitors_mangement_system.Controllers
             (int statusCode, string message) = _visitorBusiness.UpdateVisitor(visitorId, request);
 
             if (statusCode == 200)
-                return Ok(message);
+                return Ok(new CommonResponseModel<string>
+                {
+                    Success = true,
+                    Message = "Visitor Updated Successfully",
+                    Response = null
+                });
 
             if (statusCode == 404)
-                return NotFound(message);
-
+                return NotFound(new CommonResponseModel<string>
+                {
+                    Success = false,
+                    Message = "Visitor not found ",
+                    Response = null
+                });
             return BadRequest(message);
         }
         [Authorize]
