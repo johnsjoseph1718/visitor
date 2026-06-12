@@ -80,26 +80,63 @@ namespace visitors_mangement_system.Repositories
                     }
                 }
 
-                string countQuery = @"
-        SELECT COUNT(*)
-        FROM Visits
-        WHERE VisitDate = @VisitDate
-        AND Status = 'Scheduled'
-        AND IsActive = 1";
+                string waitingCountQuery = @"
+SELECT COUNT(*)
+FROM Visits
+WHERE VisitDate = @VisitDate
+AND Status = 'Waiting'
+AND IsActive = 1";
 
-                int scheduledCount;
+                using SqlCommand waitingCountCmd =
+                    new SqlCommand(waitingCountQuery, con);
 
-                using (SqlCommand countCmd = new SqlCommand(countQuery, con))
+                waitingCountCmd.Parameters.AddWithValue(
+                    "@VisitDate",
+                    request.VisitDate.Date
+                );
+
+                int waitingCount =
+                    Convert.ToInt32(waitingCountCmd.ExecuteScalar());
+
+                string status;
+
+                if (waitingCount > 0)
                 {
-                    countCmd.Parameters.AddWithValue("@VisitDate", request.VisitDate.Date);
+                    if (waitingCount >= 5)
+                    {
+                        return (
+                            false,
+                            "Daily capacity reached. Please select another date."
+                        );
+                    }
 
-                    scheduledCount = Convert.ToInt32(countCmd.ExecuteScalar());
+                    status = "Waiting";
                 }
+                else
+                {
+                    string countQuery = @"
+    SELECT COUNT(*)
+    FROM Visits
+    WHERE VisitDate = @VisitDate
+    AND Status = 'Scheduled'
+    AND IsActive = 1";
 
-                string status = scheduledCount < 10
-                    ? "Scheduled"
-                    : "Waiting";
+                    using SqlCommand countCmd =
+                        new SqlCommand(countQuery, con);
 
+                    countCmd.Parameters.AddWithValue(
+                        "@VisitDate",
+                        request.VisitDate.Date
+                    );
+
+                    int scheduledCount =
+                        Convert.ToInt32(countCmd.ExecuteScalar());
+
+                    status =
+                        scheduledCount < 10
+                        ? "Scheduled"
+                        : "Waiting";
+                }
                 string insertVisitQuery = @"
         INSERT INTO Visits
         (
@@ -185,6 +222,10 @@ namespace visitors_mangement_system.Repositories
             WHERE VisitId = @VisitId";
 
                 using SqlCommand updateCmd = new SqlCommand(updateQuery, con);
+
+                // Provide UpdatedBy parameter with Admin fallback (keep behavior unchanged)
+                string updatedBy = "Admin";
+                updateCmd.Parameters.AddWithValue("@UpdatedBy", updatedBy);
 
                 updateCmd.Parameters.AddWithValue("@VisitId", visitId);
 
@@ -463,16 +504,17 @@ namespace visitors_mangement_system.Repositories
 
                 string status;
 
-                if (waitingCount > 0)
-                {
+                
                     // Apply queue protection: if there are waiting visitors for this date, new visits join waiting
-                    // But enforce waiting list limit: max 4
-                    if (waitingCount >= 4)
+                    // Enforce waiting list limit: max 5
+                    if (waitingCount >= 5)
                     {
                         return (false, "Daily capacity reached. Please select another date.");
                     }
 
-                    status = "Waiting";
+                    if (waitingCount > 0)
+                    {
+                        status = "Waiting";
                 }
                 else
                 {
