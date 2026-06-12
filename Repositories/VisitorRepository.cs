@@ -465,7 +465,14 @@ namespace visitors_mangement_system.Repositories
 
                 if (waitingCount > 0)
                 {
-                    status = "Waiting"; // queue protection: if there are waiting visitors for this date, new visits join waiting
+                    // Apply queue protection: if there are waiting visitors for this date, new visits join waiting
+                    // But enforce waiting list limit: max 4
+                    if (waitingCount >= 4)
+                    {
+                        return (false, "Daily capacity reached. Please select another date.");
+                    }
+
+                    status = "Waiting";
                 }
                 else
                 {
